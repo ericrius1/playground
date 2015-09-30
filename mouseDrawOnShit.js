@@ -12,8 +12,8 @@ var STROKE_WIDTH = 0.01
 var MAX_POINTS_PER_LINE = 60;
 
 
-var center = Vec3.sum(MyAvatar.position, Vec3.multiply(3, Quat.getFront(Camera.getOrientation())));
 MyAvatar.bodyYaw = 0;
+var center = Vec3.sum(MyAvatar.position, Vec3.multiply(3, Quat.getFront(Camera.getOrientation())));
 var whiteboard = Entities.addEntity({
   type: "Box",
   position: center,
