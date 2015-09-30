@@ -15,11 +15,12 @@ var TRIGGER_ON_VALUE = 0.3;
 
 var MAX_DISTANCE = 3;
 
-var STROKE_WIDTH = 0.05
+var STROKE_WIDTH = 0.03
 var MAX_POINTS_PER_LINE = 40;
 
-var center = Vec3.sum(MyAvatar.position, Vec3.multiply(3, Quat.getFront(Camera.getOrientation())));
 
+var center = Vec3.sum(MyAvatar.position, Vec3.multiply(3, Quat.getFront(Camera.getOrientation())));
+MyAvatar.bodyYaw = 0;
 var whiteboard = Entities.addEntity({
   type: "Box",
   position: center,
@@ -61,16 +62,15 @@ function MyController(hand, triggerAction) {
     blue: 160
   };
 
-  this.laserPointer = Entities.addEntity({
-    type: "Box",
-    dimensions: {
-      x: STROKE_WIDTH,
-      y: STROKE_WIDTH,
-      z: 0.01
+  this.laserPointer = Overlays.addOverlay("circle3d", {
+    size: {
+      x: STROKE_WIDTH/2,
+      y: STROKE_WIDTH/2
     },
     color: this.strokeColor,
-  });
-
+    solid: true,
+    position: center
+  })
   this.triggerValue = 0;
   this.prevTriggerValue = 0;
   var _this = this;
@@ -85,6 +85,7 @@ function MyController(hand, triggerAction) {
   };
 
   this.paint = function(position, normal) {
+    // print("POSITION " + position.z)
     if (!this.painting) {
       this.newStroke(this.intersection.intersection);
       this.painting = true;
@@ -168,15 +169,19 @@ function MyController(hand, triggerAction) {
     };
 
     this.intersection = Entities.findRayIntersection(pickRay, true);
-    if (this.intersection.intersects) {
+    if (this.intersection.intersects && this.intersection.properties.name !== "laserPointer") {
       var distance = Vec3.distance(handPosition, this.intersection.intersection);
       if (distance < MAX_DISTANCE) {
         this.readyToPaint = true;
-        Entities.editEntity(this.laserPointer, {
+        var displayPoint = this.intersection.intersection;
+        displayPoint = Vec3.sum(displayPoint, Vec3.multiply(this.intersection.surfaceNormal, .001));  
+   
+        Overlays.editOverlay(this.laserPointer, {
           visible: true,
-          position: this.intersection.intersection,
+          position: displayPoint,
           rotation: orientationOf(this.intersection.surfaceNormal)
         });
+
       } else {
         this.hitFail();
       }
@@ -195,7 +200,7 @@ function MyController(hand, triggerAction) {
   }
 
   this.cleanup = function() {
-    Entities.deleteEntity(this.laserPointer);
+    Overlays.deleteOverlay(this.laserPointer);
     this.strokes.forEach(function(stroke) {
       Entities.deleteEntity(stroke);
     });
