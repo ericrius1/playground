@@ -86,8 +86,8 @@ function MyController(hand, triggerAction) {
 
   this.paint = function(position, normal) {
     // print("POSITION " + position.z)
-    if (!this.painting) {
-      this.newStroke(this.intersection.intersection);
+    if (this.painting === false) {
+      this.newStroke(position);
       this.painting = true;
     }
 
@@ -99,7 +99,7 @@ function MyController(hand, triggerAction) {
 
     var localPoint = Vec3.subtract(position, this.strokeBasePosition);
     //Move stroke a bit forward along normal so it doesnt zfight with mesh its drawing on 
-    localPoint = Vec3.sum(localPoint, Vec3.multiply(normal, .001));  
+    localPoint = Vec3.sum(localPoint, Vec3.multiply(normal, Math.random() * .001));  //rand avoid z fighting
 
     if (this.strokePoints.length > 0 && Vec3.distance(localPoint, this.strokePoints[this.strokePoints.length - 1]) < MIN_POINT_DISTANCE) {
       //need a minimum distance to avoid binormal NANs
@@ -107,7 +107,7 @@ function MyController(hand, triggerAction) {
     }
 
     this.strokePoints.push(localPoint);
-    this.strokeNormals.push(this.intersection.surfaceNormal);
+    this.strokeNormals.push(normal);
     this.strokeWidths.push(STROKE_WIDTH);
     Entities.editEntity(this.currentStroke, {
       linePoints: this.strokePoints,
@@ -168,8 +168,9 @@ function MyController(hand, triggerAction) {
       direction: Quat.getUp(this.getHandRotation())
     };
 
+
     this.intersection = Entities.findRayIntersection(pickRay, true);
-    if (this.intersection.intersects && this.intersection.properties.name !== "laserPointer") {
+    if (this.intersection.intersects) {
       var distance = Vec3.distance(handPosition, this.intersection.intersection);
       if (distance < MAX_DISTANCE) {
         this.readyToPaint = true;
@@ -192,8 +193,7 @@ function MyController(hand, triggerAction) {
 
   this.hitFail = function() {
     this.readyToPaint = false;
-    // this.shouldPaint = false;
-    Entities.editEntity(this.laserPointer, {
+   Overlays.editOverlay(this.laserPointer, {
       visible: false
     });
 
