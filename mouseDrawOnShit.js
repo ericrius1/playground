@@ -1,26 +1,19 @@
-/////////////////////////////////////////////////////////////////
-//
-// other constants
-//
-
-var RIGHT_HAND = 1;
-var LEFT_HAND = 0;
-
 var MIN_POINT_DISTANCE = 0.01;
+var MAX_POINT_DISTANCE = 1;
 
 var SPATIAL_CONTROLLERS_PER_PALM = 2;
 var TIP_CONTROLLER_OFFSET = 1;
 
 var TRIGGER_ON_VALUE = 0.3;
 
-var MAX_DISTANCE = 2;
+var MAX_DISTANCE = 40;
 
-var STROKE_WIDTH = 0.02
+var STROKE_WIDTH = 0.01
 var MAX_POINTS_PER_LINE = 60;
 
 
+var center = Vec3.sum(MyAvatar.position, Vec3.multiply(3, Quat.getFront(Camera.getOrientation())));
 MyAvatar.bodyYaw = 0;
-var center = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getFront(Camera.getOrientation())));
 var whiteboard = Entities.addEntity({
   type: "Box",
   position: center,
@@ -39,22 +32,10 @@ var whiteboard = Entities.addEntity({
 
 
 
-function MyController(hand, triggerAction) {
-  this.hand = hand;
+function MyController() {
   this.strokes = [];
   this.painting = false;
 
-  if (this.hand === RIGHT_HAND) {
-    this.getHandPosition = MyAvatar.getRightPalmPosition;
-    this.getHandRotation = MyAvatar.getRightPalmRotation;
-  } else {
-    this.getHandPosition = MyAvatar.getLeftPalmPosition;
-    this.getHandRotation = MyAvatar.getLeftPalmRotation;
-  }
-
-  this.triggerAction = triggerAction;
-  this.palm = SPATIAL_CONTROLLERS_PER_PALM * hand;
-  this.tip = SPATIAL_CONTROLLERS_PER_PALM * hand + TIP_CONTROLLER_OFFSET;
 
 
   this.strokeColor = {
@@ -77,16 +58,15 @@ function MyController(hand, triggerAction) {
   var _this = this;
 
 
-  this.update = function() {
-    this.updateControllerState()
-    this.search();
-    if (this.canPaint === true) {
+  this.update = function(event) {
+    var pickRay = Camera.computePickRay(event.x, event.y);
+    this.search(pickRay);
+    if (this.canPaint) {
       this.paint(this.intersection.intersection, this.intersection.surfaceNormal);
     }
   };
 
   this.paint = function(position, normal) {
-    // print("POSITION " + position.z)
     if (this.painting === false) {
       if (this.oldPosition) {
         this.newStroke(this.oldPosition);
@@ -107,8 +87,12 @@ function MyController(hand, triggerAction) {
       //need a minimum distance to avoid binormal NANs
       return;
     }
-    if(this.strokePoints.length === 0) {
-      localPoint = {x: 0, y: 0, z: 0};
+    if (this.strokePoints.length === 0) {
+      localPoint = {
+        x: 0,
+        y: 0,
+        z: 0
+      };
     }
 
     this.strokePoints.push(localPoint);
@@ -123,8 +107,7 @@ function MyController(hand, triggerAction) {
       this.painting = false;
       return;
     }
-      this.oldPosition = position
-
+    this.oldPosition = position
   }
 
   this.newStroke = function(position) {
@@ -148,17 +131,6 @@ function MyController(hand, triggerAction) {
 
   }
 
-  this.updateControllerState = function() {
-    var triggerValue = Controller.getActionValue(this.triggerAction);
-    if (triggerValue > TRIGGER_ON_VALUE && this.prevTriggerValue <= TRIGGER_ON_VALUE) {
-      this.squeeze();
-    } else if (triggerValue < TRIGGER_ON_VALUE && this.prevTriggerValue >= TRIGGER_ON_VALUE) {
-      this.release()
-    }
-
-    this.prevTriggerValue = triggerValue;
-  }
-
   this.squeeze = function() {
     this.tryPainting = true;
 
@@ -169,20 +141,13 @@ function MyController(hand, triggerAction) {
     this.canPaint = false;
     this.oldPosition = null;
   }
-  this.search = function() {
-
-    // the trigger is being pressed, do a ray test
-    var handPosition = this.getHandPosition();
-    var pickRay = {
-      origin: handPosition,
-      direction: Quat.getUp(this.getHandRotation())
-    };
-
+  this.search = function(pickRay) {
 
     this.intersection = Entities.findRayIntersection(pickRay, true);
     if (this.intersection.intersects) {
-      var distance = Vec3.distance(handPosition, this.intersection.intersection);
+      var distance = Vec3.distance(MyAvatar.position, this.intersection.intersection);
       if (distance < MAX_DISTANCE) {
+        this.readyToPaint = true;
         var displayPoint = this.intersection.intersection;
         displayPoint = Vec3.sum(displayPoint, Vec3.multiply(this.intersection.surfaceNormal, .001));
         if (this.tryPainting) {
@@ -203,8 +168,8 @@ function MyController(hand, triggerAction) {
   };
 
   this.hitFail = function() {
+    print("HIT FAIL")
     this.canPaint = false;
-
     Overlays.editOverlay(this.laserPointer, {
       visible: false
     });
@@ -219,22 +184,16 @@ function MyController(hand, triggerAction) {
   }
 }
 
-var rightController = new MyController(RIGHT_HAND, Controller.findAction("RIGHT_HAND_CLICK"));
-var leftController = new MyController(LEFT_HAND, Controller.findAction("LEFT_HAND_CLICK"));
+var mouseController = new MyController();
 
-function update() {
-  rightController.update();
-  leftController.update();
-}
 
 function cleanup() {
-  rightController.cleanup();
-  leftController.cleanup();
+
   Entities.deleteEntity(whiteboard)
+  mouseController.cleanup();
 }
 
 Script.scriptEnding.connect(cleanup);
-Script.update.connect(update);
 
 
 function orientationOf(vector) {
@@ -258,3 +217,21 @@ function orientationOf(vector) {
   pitch = Quat.angleAxis(Math.asin(-direction.y) * RAD_TO_DEG, X_AXIS);
   return Quat.multiply(yaw, pitch);
 }
+
+function onMousePress(event) {
+  if (event.isLeftButton) {
+    mouseController.squeeze();
+  }
+}
+
+function onMouseRelease() {
+  mouseController.release();
+}
+
+function onMouseMove(event) {
+  mouseController.update(event);
+}
+
+Controller.mousePressEvent.connect(onMousePress);
+Controller.mouseReleaseEvent.connect(onMouseRelease);
+Controller.mouseMoveEvent.connect(onMouseMove);
