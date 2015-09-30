@@ -109,7 +109,6 @@
 
             //The launcher is static, so just cache its position once
             this.position = Entities.getEntityProperties(this.entityID, "position").position;
-            this.explode();
         },
 
         unload: function() {
