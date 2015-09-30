@@ -42,6 +42,7 @@ var whiteboard = Entities.addEntity({
 function MyController(hand, triggerAction) {
   this.hand = hand;
   this.strokes = [];
+  this.painting = false;
 
   if (this.hand === RIGHT_HAND) {
     this.getHandPosition = MyAvatar.getRightPalmPosition;
@@ -79,7 +80,7 @@ function MyController(hand, triggerAction) {
   this.update = function() {
     this.updateControllerState()
     this.search();
-    if (this.shouldPaint) {
+    if(this.canPaint){
       this.paint(this.intersection.intersection, this.intersection.surfaceNormal);
     }
   };
@@ -149,15 +150,13 @@ function MyController(hand, triggerAction) {
   }
 
   this.squeeze = function() {
-    if (this.readyToPaint) {
-      this.shouldPaint = true;
-    }
+    this.tryPainting = true;  
 
   }
   this.release = function() {
     this.painting = false;
-    this.shouldPaint = false;
-    this.readyToPaint = false;
+    this.tryPainting = false;
+    this.canPaint = false;
   }
   this.search = function() {
 
@@ -176,7 +175,9 @@ function MyController(hand, triggerAction) {
         this.readyToPaint = true;
         var displayPoint = this.intersection.intersection;
         displayPoint = Vec3.sum(displayPoint, Vec3.multiply(this.intersection.surfaceNormal, .001));  
-   
+        if(this.tryPainting) {
+          this.canPaint = true;
+        }
         Overlays.editOverlay(this.laserPointer, {
           visible: true,
           position: displayPoint,
@@ -192,7 +193,7 @@ function MyController(hand, triggerAction) {
   };
 
   this.hitFail = function() {
-    this.readyToPaint = false;
+    this.canPaint = false;
    Overlays.editOverlay(this.laserPointer, {
       visible: false
     });
